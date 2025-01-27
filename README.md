@@ -17,43 +17,34 @@ Bu proje, Moodle platformunda sınavlar sırasında öğrencilerin verdiği ceva
 
 ## Kurulum
 
-### 1. Dosyaları Moodle'a Yükleyin
+###  Dosyaları Moodle'a Yükleyin
 Eklenti dosyalarını `moodle/local/ai_yorumu` dizinine kopyalayın:
 - `index.php`
 - `predict.py`
 - `etiket_hafta.json`
 
-### 2. Gerekli Ayarları Yapın
+### Gerekli Ayarları Yapın
 - Python 3.13 sürümünün kurulu olduğundan emin olun.
 - Kullanılan Python dosyası ve modellerin yolu `predict.py` ve `index.php` içinde doğru ayarlanmalıdır.
 
-### 3. JSON Dosyası (etiket_hafta.json)
-`etiket_hafta.json` dosyası, konuları ilgili haftalarla eşleştirmek için kullanılır. Örnek yapı:
-```json
-{
-    "Makine Öğrenimi Temelleri": 1,
-    "Denetimli Öğrenme": 2,
-    "Python Programlama": 3,
-    "Veri Analizi": 4,
-    "Derin Öğrenme": 5
-}
-## Eklentiyi Moodle'da Etkinleştirin
+
+### Eklentiyi Moodle'da Etkinleştirin
 1. Moodle'da **Eklenti Yönetimi** sayfasına gidin.
 2. Yüklemiş olduğunuz bu modülü etkinleştirin.
 3. Eklenti etkinleştirildikten sonra, ilgili kurslarda **AI Analiz** sekmesi altında çalışacaktır.
 
-## Kullanım
+### Kullanım
 1. **Sınav:** Öğrencinin sınava girmesi gereklidir. Sınava giren öğrencilerin cevapları analiz edilir.
 2. **Yanlış Cevaplar:** Sınavda yanlış verilen cevaplar listelenir.
 3. **Konu Analizi:** Yanlış cevaplara göre öğrenciye eksik olduğu konular gösterilir.
 4. **Kaynak Yönlendirme:** Her konu için kurs içerisindeki ilgili haftaya yönlendiren bir buton sunulur (örneğin, **"Hafta 2"**).
 
-## Dosya Açıklamaları
+### Dosya Açıklamaları
 - **index.php:** Ana dosya. Moodle'daki sınavların analizini ve eksik konuların gösterimini sağlar.
 - **predict.py:** Python tabanlı yapay zeka modeli. Soru metni ile konu analizi yapar.
 - **etiket_hafta.json:** Konular ve ilgili haftaların eşleştirildiği yapılandırma dosyası.
 
-## Gereksinimler
+### Gereksinimler
 - **Moodle Sürümü:** 3.x ve üzeri
 - **Python Sürümü:** 3.13 ve üzeri
 - **Ek Python Paketleri:** `scikit-learn`, `joblib`, `numpy`
