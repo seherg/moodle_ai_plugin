@@ -3,7 +3,6 @@ require('../../config.php');
 global $CFG, $DB, $PAGE, $OUTPUT, $USER;
 
 header('Content-Type: text/html; charset=utf-8');
-header('Content-Type: application/json; charset=utf-8');
 
 $courseid = required_param('courseid', PARAM_INT);
 $course = $DB->get_record('course', array('id' => $courseid), '*', MUST_EXIST);
@@ -65,21 +64,57 @@ function get_ai_prediction($question_text, $question_name) {
     }
 }
 
-// CSS ve JavaScript ekle
+// CSS stil tanımlamaları
 echo $OUTPUT->header();
 ?>
 <style>
-.goto-week-btn {
+.goto-week-btn, 
+.btn-primary, 
+.btn-sm {
     padding: 5px 10px;
     margin-left: 10px;
     background-color: #0056b3;
-    color: white;
+    color: white !important;
     border: none;
     border-radius: 4px;
     cursor: pointer;
+    text-decoration: none !important;
+    display: inline-block;
+    font-size: 0.9rem;
+    line-height: 1.5;
 }
-.goto-week-btn:hover {
+.goto-week-btn:hover, 
+.btn-primary:hover, 
+.btn-sm:hover {
     background-color: #003d82;
+    color: white !important;
+    text-decoration: none !important;
+}
+.quiz-details {
+    margin-bottom: 2rem;
+}
+.topic-analysis {
+    margin-top: 2rem;
+}
+.badge {
+    font-size: 0.9em;
+    padding: 8px 12px;
+}
+.topic-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 15px;
+    margin-bottom: 5px;
+    background-color: #f8f9fa;
+    border-radius: 4px;
+}
+.topic-name {
+    flex-grow: 1;
+}
+.topic-stats {
+    margin-left: 15px;
+    white-space: nowrap;
 }
 </style>
 
@@ -87,25 +122,48 @@ echo $OUTPUT->header();
 echo '<div class="container">';
 
 try {
+    // Tüm sınavları getir
     $quizzes = $DB->get_records_sql(
         "SELECT q.*, cm.id as cmid 
          FROM {quiz} q
          JOIN {course_modules} cm ON cm.instance = q.id
          JOIN {modules} m ON m.id = cm.module
-         WHERE m.name = 'quiz' AND cm.course = ?",
+         WHERE m.name = 'quiz' AND cm.course = ?
+         ORDER BY q.timeopen DESC",
         [$courseid]
     );
 
     if ($quizzes) {
+        $overall_topic_analysis = array();
+        $total_wrong_questions = 0;
+        $has_any_attempt = false;
+
+        // Her sınav için detayları göster
         foreach ($quizzes as $quiz) {
-            echo '<div class="card mb-4">';
+            echo '<div class="card quiz-details mb-4">';
             echo '<div class="card-header bg-primary text-white">';
-            echo '<h3>' . htmlspecialchars($quiz->name) . '</h3>';
+            echo '<h3 class="mb-0">' . htmlspecialchars($quiz->name) . '</h3>';
             echo '</div>';
             echo '<div class="card-body">';
 
+            // Sınava girip girmediğini kontrol et
+            $attempts = $DB->get_records('quiz_attempts', [
+                'quiz' => $quiz->id,
+                'userid' => $USER->id,
+                'state' => 'finished'
+            ]);
+
+            if (empty($attempts)) {
+                echo '<div class="alert alert-warning">Bu sınava henüz girmemişsiniz.</div>';
+                echo '</div></div>';
+                continue;
+            }
+
+            $has_any_attempt = true;
+
+            // Yanlış cevapları getir
             $wrong_answers = $DB->get_records_sql(
-                "SELECT qa.*, q.name AS question_name, 
+                "SELECT DISTINCT qa.*, q.name AS question_name, 
                         q.questiontext AS question_text,
                         qa.responsesummary AS student_answer,
                         qa.rightanswer AS correct_answer
@@ -114,21 +172,22 @@ try {
                  JOIN {question} q ON q.id = qa.questionid
                  WHERE qza.quiz = ? AND qza.userid = ? 
                  AND qa.rightanswer != qa.responsesummary
-                 ORDER BY qza.attempt DESC",
+                 AND qza.state = 'finished'
+                 ORDER BY qza.attempt DESC, qa.slot ASC",
                 [$quiz->id, $USER->id]
             );
 
             if ($wrong_answers) {
-                $topic_analysis = array();
-                
+                $total_wrong_questions += count($wrong_answers);
+
                 echo '<div class="table-responsive">';
                 echo '<table class="table table-striped table-bordered">';
-                echo '<thead>';
+                echo '<thead class="thead-dark">';
                 echo '<tr>';
-                echo '<th>Soru Etiketi</th>';
+                echo '<th>Soru</th>';
                 echo '<th>Doğru Cevap</th>';
-                echo '<th>Öğrenci Cevabı</th>';
-                echo '<th>YZ Analizi</th>';
+                echo '<th>Sizin Cevabınız</th>';
+                echo '<th>Konu</th>';
                 echo '<th>İlgili Hafta</th>';
                 echo '</tr>';
                 echo '</thead>';
@@ -136,71 +195,86 @@ try {
 
                 foreach ($wrong_answers as $answer) {
                     $ai_prediction = get_ai_prediction($answer->question_text, $answer->question_name);
+                    
+                    // Genel analiz için topla
+                    if (!isset($overall_topic_analysis[$ai_prediction])) {
+                        $overall_topic_analysis[$ai_prediction] = 0;
+                    }
+                    $overall_topic_analysis[$ai_prediction]++;
+                
                     $week_number = isset($etiket_hafta[$ai_prediction]) ? $etiket_hafta[$ai_prediction] : 'Bilinmiyor';
-
                     $section_url = new moodle_url('/course/view.php', [
                         'id' => $courseid,
                         'section' => $week_number
                     ]);
-
+                
                     echo '<tr>';
-                    echo '<td>' . htmlspecialchars($answer->question_name, ENT_QUOTES, 'UTF-8') . '</td>';
-                    echo '<td>' . htmlspecialchars($answer->correct_answer, ENT_QUOTES, 'UTF-8') . '</td>';
-                    echo '<td>' . htmlspecialchars($answer->student_answer, ENT_QUOTES, 'UTF-8') . '</td>';
-                    echo '<td>' . htmlspecialchars($ai_prediction, ENT_QUOTES, 'UTF-8') . '</td>';
+                    echo '<td>' . htmlspecialchars($answer->question_name) . '</td>';
+                    echo '<td>' . htmlspecialchars($answer->correct_answer) . '</td>';
+                    echo '<td>' . htmlspecialchars($answer->student_answer) . '</td>';
+                    echo '<td>' . htmlspecialchars($ai_prediction) . '</td>';
                     echo '<td>';
                     if ($week_number !== 'Bilinmiyor') {
-                        echo '<a href="' . $section_url . '" class="btn btn-primary btn-sm">Hafta ' . $week_number . '</a>';
+                        echo '<a href="' . $section_url . '" class="goto-week-btn">Hafta ' . $week_number . '</a>';
                     } else {
                         echo '<span class="text-danger">Konu Bulunamadı</span>';
                     }
                     echo '</td>';
                     echo '</tr>';
-                }
+                }                
 
                 echo '</tbody>';
                 echo '</table>';
-
-                echo '</div>';
-
-                // Konu bazlı analiz özeti
-                echo '<div class="mt-4">';
-                echo '<h4>Konu Bazlı Analiz Özeti</h4>';
-                echo '<ul class="list-group">';
-                arsort($topic_analysis);
-                foreach ($topic_analysis as $topic => $count) {
-                    $percentage = ($count / count($wrong_answers)) * 100;
-                    $week = isset($etiket_hafta[$topic]) ? $etiket_hafta[$topic] : 'Bilinmiyor';
-                    $section_url = new moodle_url('/course/view.php', [
-                        'id' => $courseid,
-                        'section' => $week
-                    ]);
-                    
-                    echo '<li class="list-group-item d-flex justify-content-between align-items-center">';
-                    echo htmlspecialchars($topic);
-                    if ($week !== 'Bilinmiyor') {
-                        echo ' <a href="' . $section_url . '" class="goto-week-btn">Hafta ' . $week . '</a>';
-                    }
-                    echo '<span class="badge bg-primary rounded-pill">' . 
-                         number_format($percentage, 1) . '% (' . $count . ' soru)</span>';
-                    echo '</li>';
-                }
-                echo '</ul>';
                 echo '</div>';
 
             } else {
-                echo '<div class="alert alert-success">Tüm sorular doğru cevaplanmış!</div>';
+                echo '<div class="alert alert-success">Tebrikler! Bu sınavdaki tüm soruları doğru cevapladınız.</div>';
             }
 
             echo '</div>';
             echo '</div>';
         }
+
+        // Genel konu bazlı analiz özetini göster
+        if ($has_any_attempt && !empty($overall_topic_analysis)) {
+            echo '<div class="card topic-analysis">';
+            echo '<div class="card-header bg-primary text-white">';
+            echo '<h3 class="mb-0">Konu Bazlı Analiz Özeti</h3>';
+            echo '</div>';
+            echo '<div class="card-body">';
+            
+            arsort($overall_topic_analysis);
+            
+            foreach ($overall_topic_analysis as $topic => $count) {
+                $percentage = ($count / $total_wrong_questions) * 100;
+                $week = isset($etiket_hafta[$topic]) ? $etiket_hafta[$topic] : 'Bilinmiyor';
+                
+                echo '<div class="topic-item">';
+                echo '<span class="topic-name">' . htmlspecialchars($topic) . '</span>';
+                
+                if ($week !== 'Bilinmiyor') {
+                    $section_url = new moodle_url('/course/view.php', [
+                        'id' => $courseid,
+                        'section' => $week
+                    ]);
+                    echo '<a href="' . $section_url . '" class="goto-week-btn">Hafta ' . $week . '</a>';
+                }
+                
+                echo '<span class="topic-stats badge bg-primary">' . 
+                     number_format($percentage, 1) . '% (' . $count . ' soru)</span>';
+                echo '</div>';
+            }
+            
+            echo '</div>';
+            echo '</div>';
+        }
+        
     } else {
         echo '<div class="alert alert-info">Bu derste henüz sınav bulunmamaktadır.</div>';
     }
 
 } catch (Exception $e) {
-    echo '<div class="alert alert-danger">Hata: ' . htmlspecialchars($e->getMessage(), ENT_QUOTES, 'UTF-8') . '</div>';
+    echo '<div class="alert alert-danger">Hata: ' . htmlspecialchars($e->getMessage()) . '</div>';
 }
 
 echo '</div>';
