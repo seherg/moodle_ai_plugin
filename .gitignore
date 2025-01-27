@@ -1,0 +1,59 @@
+# GITIGNORE for Moodle AI Plugin
+
+# Ignore system-specific files
+.DS_Store
+Thumbs.db
+
+# Ignore Python artifacts
+*.pyc
+*.pyo
+__pycache__/
+*.pkl
+
+# Ignore PHP artifacts
+*.log
+
+# Ignore Composer dependencies
+/vendor/
+composer.lock
+
+# Ignore Node.js dependencies
+/node_modules/
+package-lock.json
+
+# Ignore temporary and backup files
+*.swp
+*.bak
+*.tmp
+*.temp
+*.old
+
+# Ignore sensitive data
+/config.php
+/local/ai_yorumu/*.env
+
+# Ignore dataset and model files
+data/
+*.csv
+*.h5
+rf_model.pkl
+tfidf_vectorizer.pkl
+label_encoder.pkl
+
+# Ignore IDE files
+.idea/
+.vscode/
+*.code-workspace
+
+# Ignore OS generated files
+*.~undo-tree
+*.~
+~$
+
+# Logs
+logs/
+*.log
+
+# Ignore tests and coverage
+/tests/
+/coverage/
